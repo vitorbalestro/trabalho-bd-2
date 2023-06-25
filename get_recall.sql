@@ -1,11 +1,4 @@
-/* The recall metric counts how many vectors in the result table has
-distance to the query vector smaller to the reference distance. 
-
-We assume that the results are stored in the table named result_table(id int, vec double precision[]).
-The query vector is passed by its index (so we can compute the reference distance by the function
-get_reference_distance).*/
-
-CREATE OR REPLACE FUNCTION get_recall(query_vector_index int, parameters_key int) RETURNS double precision AS
+CREATE OR REPLACE FUNCTION get_recall_method1(query_vector_index int, parameters_key int) RETURNS double precision AS
 $$
 DECLARE
 	i int;
@@ -14,6 +7,8 @@ DECLARE
 	reference_distance double precision;
 	hit_count int;
 	dist double precision;
+	line_ record;
+	recall_ double precision;
 BEGIN
 	hit_count = 0;
 	reference_distance = get_reference_distance(query_vector_index);
@@ -22,7 +17,9 @@ BEGIN
 			hit_count = hit_count + 1;
 		END IF;
 	END LOOP;
-
-	RETURN hit_count :: double precision / 100;
+	recall_ = hit_count :: double precision / 100;
+	INSERT INTO recall_table_method1(query_vector_id,parameters_key_,recall) VALUES
+		(query_vector_index,parameters_key,recall_);
+	RETURN recall_;
 END;
 $$ LANGUAGE plpgsql;

@@ -151,11 +151,8 @@ Na fase de pré-processamento, primeiro executamos um algoritmo de \emph{cluster
 
 O próximo passo é criar uma tabela que informe o centróide mais próximo de cada vetor da tabela \textbf{object} (e a distância do vetor ao seu centróide mais próximo). Assim, dado um vetor \textbf{query}, podemos, por exemplo, restringir a busca aos vetores cujo centróide mais próximo é o centróide mais próximo de \textbf{query}. A tabela que guarda estas informações é chamada \textbf{closer$\_$centroids}, e o código para gerá-la é exibido abaixo. Vale notar que esta etapa é custosa. Note que a chamada da função recebe como parâmetros a quantidade de vetores de \textbf{object} para os quais o centróide mais próximo será calculado e um valor de \emph{offset}. Para evitar esgotamento de memória principal, dividimos a tabela rodando a função para cada uma de suas partes. Em um notebook de categoria intermediária, cada execução para 100000 vetores levou em torno de 4 minutos. \\
 
-\begin{minipage}\linewidth
 \begin{lstlisting}[caption = Obtendo a tabela de centróides mais próximos, label = closcent]
 CREATE TYPE tuple AS (ind int, dist double precision);
-
-CREATE TABLE closer_centroids (id INT NOT NULL, closer_centroid_ind INT, dist double precision);
 
 CREATE OR REPLACE FUNCTION get_closer_centroids(qtd int,offs int) RETURNS void AS $$
 DECLARE
@@ -188,70 +185,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 \end{lstlisting}
-\end{minipage}
 \vspace{5mm}
 
-\section{Calculando o \textit{recall}}
+O esquema lógico das tabelas criadas na etapa de pré-processamento está no Appêndice \ref{app0}
 
-Para calcular o \emph{recall} de uma determinada execução, primeiro obtemos a distância referência correspondente (através da tabela \textbf{neighbor}). Usamos a função explicitada abaixo para calcular a distância de referência do $j$-ésimo vetor da tabela \textbf{object} (isto é, o vetor cujo id é $j$).\\
-
-
-\begin{minipage}\linewidth
-\begin{lstlisting}[caption = Calculando a distância de referência., label = refdist]
-CREATE OR REPLACE FUNCTION get_reference_distance(j int) RETURNS double precision AS
-$$
-DECLARE
-	query_vector int[];
-	neighbors_vector int[];
-	index_ int;
-	reference_vector double precision [];
-	
-BEGIN 
-	query_vector := (SELECT query FROM tquery LIMIT 1 OFFSET j-1);
- 	SELECT neighbors INTO neighbors_vector FROM neighbors WHERE id = j;
-	index_ := neighbors_vector[100];
-	SELECT features INTO reference_vector FROM object WHERE id = index_;
-	
-	RETURN euclidean_distance(query_vector,reference_vector);
-	
-END;
-$$ LANGUAGE plpgsql;
-
-\end{lstlisting}
-\end{minipage}
-\vspace{5mm}
-
-Agora, basta calcular as distâncias do conjunto de vizinhos aproximados obtidos para o vetor de \emph{query} e comparar com a distância de referência deste vetor. Os vetores obtidos como resultado estão armazenados na tabela \textbf{result$\_$table}.\\
-
-\begin{minipage}\linewidth
-\begin{lstlisting}[caption = Calculando o \emph{recall}., label = recallfunc]
-CREATE OR REPLACE FUNCTION get_recall(query_vector_index int) RETURNS double precision AS
-$$
-DECLARE
-	i int;
-	query_vector double precision[];
-	result_vector double precision[];
-	reference_distance double precision;
-	hit_count int;
-	dist double precision;
-BEGIN
-	hit_count := 0;
-	reference_distance := get_reference_distance(query_vector_index);
-	query_vector := (SELECT query FROM tquery WHERE id = j);
-	FOR i IN 1..100 LOOP
-		result_vector := (SELECT vec FROM result_table LIMIT 1 OFFSET i-1);
-		dist := euclidean_distance(query_vector,result_vector);
-		IF (dist <= reference_distance) THEN
-			hit_count := hit_count + 1;
-		END IF;
-	END LOOP;
-	RETURN hit_count::double precision / 100;
-END;
-$$ LANGUAGE plpgsql;
-
-\end{lstlisting}
-\end{minipage}
-\vspace{5mm}
 
 \section{Método 1: busca por regiões parametrizadas}
 
@@ -285,27 +222,193 @@ A norma de $v - \mathbf{c}$ é igual à distância entre $v$ e \textbf{c} e, por
 
 \begin{remark} Note que para encontrar o conjunto $S_{\mathbf{c}}$, teremos que executar a seguinte consulta:\\
 
-\begin{minipage}\linewidth
 \begin{lstlisting}[caption = Encontrando $S_{\mathbf{c}}$, label = sc]
 
 SELECT * FROM closer_centroids WHERE closer_centroid_ind = id(c);
    
 \end{lstlisting}
-\end{minipage}
 \vspace{5mm}
 onde id(c) é a chave do centróide \textbf{c} (na tabela \textbf{sight$\_$}, é claro). Para otimizar estas consultas, criamos um índice na tabela \textbf{closer$\_$centróides}:\\
 
-\begin{minipage}\linewidth
+
 \begin{lstlisting}[caption = Índice na chave do centróide mais próximo, label = indice]
 
 CREATE INDEX closer_centroid_idx ON closer_centroids (closer_centroid_ind);
 
 \end{lstlisting}
-\end{minipage}
 \vspace{5mm}
 \end{remark}
 
 Esta consulta, que é feita originalmente sobre uma tabela com 1000000 de entradas, leva 60 milisegundos, em média (novamente, em um notebook pessoal de nível intermediário). 
+
+Vamos agora à implementação do método. Primeiro, notamos que o método depende de três parâmetros. Ao início da execução, esta tripla de parâmetros será armazenada em uma tabela (\textbf{method1$\_$parameters$\_$key}). Desta forma, cada tripla de parâmetros pode ser referênciada por uma chave primária. Se a tripla de parâmetros já estiver cadastrada, então ela não será recadastrada.
+
+Os resultados encontrados (isto é, os 100 vetores mais próximos aproximados) serão armazenados na tabela \textbf{result$\_$table$\_$method1}). Cada linha desta tabela armazenará a chave da tripla de parâmetros considerada, o índice do vetor \textbf{query}, o vetor resultado e a distância do vetor resultado para o vetor \textbf{query} (esta distância será usada para computar o \emph{recall} mais tarde). Se a tabela já contiver resultados para a chave (tripla de parâmetros, vetor query) considerados, a execução será abortada (para evitar duplicidade). 
+
+O código segue abaixo:\\
+
+\begin{lstlisting}[caption = O algoritmo do Método 1., label = algmetodo1]
+CREATE OR REPLACE FUNCTION ann_method1(query_vector_id int, alpha double precision, beta double precision, gamma double precision) 
+RETURNS void AS $$
+DECLARE
+	query_vector int[]; -- q
+	closer_centroid int[]; -- c
+	diff_centroid_query int[]; -- q - c
+	diff_candidate_centroid int[]; -- v - c
+	closer_centroid_index int;
+	candidate_vector int[]; -- v
+	dist_query_centroid double precision; -- ||q-c|| = d
+	dist_candidate_centroid double precision; -- ||v-c||;
+	dist_candidate_query double precision; -- ||v-q||;
+	inner_product double precision;
+	cosine double precision;
+	counter int;
+	n int;
+	parameters_key_value int;
+	reference_dist double precision;
+	line_ record;
+	i int;
+BEGIN
+	n = (SELECT COUNT(*) FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
+	IF (n = 0) THEN
+		INSERT INTO method1_parameters_key (alpha_,beta_,gamma_) VALUES (alpha,beta,gamma);
+		parameters_key_value = (SELECT par.id FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
+		n = (SELECT COUNT(*) FROM result_table_method1 WHERE parameter_key_value = parameters_key_value AND query_vector_id_ = query_vector_id);
+		IF (n != 0) THEN
+			RAISE EXCEPTION 'The function was already computed for this query vector and these parameter values';
+		END IF;
+	END IF;
+	
+	SELECT query INTO query_vector FROM tquery WHERE id = query_vector_id;
+	closer_centroid_index = get_closer_centroid_tquery(query_vector_id);
+	SELECT centroid INTO closer_centroid FROM sight_ WHERE id = closer_centroid_index;
+	dist_query_centroid = euclidean_distance(closer_centroid,query_vector);
+	FOR i IN 1..128 LOOP
+		diff_centroid_query[i] = query_vector[i] - closer_centroid[i];
+	END LOOP;
+	counter = 0;
+	FOR line_ IN SELECT * FROM closer_centroids WHERE closer_centroid_ind = closer_centroid_index LOOP
+		SELECT features INTO candidate_vector FROM object WHERE id = line_.id;
+		dist_candidate_centroid = euclidean_distance(candidate_vector,closer_centroid);
+		dist_candidate_query = euclidean_distance(candidate_vector, query_vector);
+		FOR i IN 1..128 LOOP
+		diff_candidate_centroid[i] = candidate_vector[i] - closer_centroid[i];
+		END LOOP;
+		IF (dist_candidate_centroid > alpha * dist_query_centroid AND dist_candidate_centroid < beta * dist_query_centroid) THEN
+			inner_product = get_inner_product(diff_centroid_query, diff_candidate_centroid) :: double precision;
+			cosine = inner_product/(dist_candidate_centroid * dist_query_centroid);
+			IF (cosine > gamma AND cosine < 1) THEN
+				INSERT INTO result_table_method1(parameter_key_value,query_vector_id_,vector,distance) VALUES
+					(parameters_key_value,query_vector_id,candidate_vector,dist_candidate_query);
+				counter = counter + 1;
+			END IF;
+		END IF;
+	END LOOP;
+	IF counter > 100 THEN
+		reference_dist = (SELECT distance FROM result_table_method1 AS r 
+		WHERE r.parameter_key_value = parameters_key_value AND
+			  r.query_vector_id_ = query_vector_id 
+		ORDER BY distance
+		LIMIT 1
+		OFFSET 99);
+		
+		DELETE FROM result_table_method1 AS r
+		WHERE r.parameter_key_value = parameters_key_value AND
+			  r.query_vector_id_ = query_vector_id AND
+			  distance > reference_dist;
+	END IF;
+	
+END;
+$$ LANGUAGE plpgsql;
+
+\end{lstlisting}
+\vspace{5mm}
+
+\section{Calculando o \textit{recall}}
+
+Para calcular o \emph{recall} de uma determinada execução, primeiro obtemos a distância referência correspondente (através da tabela \textbf{neighbor}). Usamos a função explicitada abaixo para calcular a distância de referência do $j$-ésimo vetor da tabela \textbf{object} (isto é, o vetor cujo id é $j$).\\
+
+\begin{lstlisting}[caption = Calculando a distância de referência., label = refdist]
+CREATE OR REPLACE FUNCTION get_reference_distance(j int) RETURNS double precision AS
+$$
+DECLARE
+	query_vector int[];
+	neighbors_vector int[];
+	index_ int;
+	reference_vector double precision [];
+	
+BEGIN 
+	query_vector := (SELECT query FROM tquery WHERE id = j);
+ 	neighbors_vector := (SELECT neighbors FROM neighbors WHERE id = j);
+	index_ := neighbors_vector[100];
+	reference_vector := (SELECT features FROM object WHERE id = index_);
+	
+	RETURN euclidean_distance(query_vector,reference_vector);
+	
+END;
+$$ LANGUAGE plpgsql;
+
+\end{lstlisting}
+\vspace{5mm}
+
+O algoritmo exato para computar o \emph{recall} depende do método adotado. Para o Método 1, a tabela de resultados (\textbf{result$\_$table$\_$method1} já fornece a distância de cada vetor da solução ao vetor \textbf{query}. Assim, usamos a seguinte função:\\
+
+\begin{lstlisting}[caption = Calculando o \emph{recall} no Método 1., label = recallfunc]
+CREATE OR REPLACE FUNCTION get_recall_method1(query_vector_index int, parameters_key int) RETURNS double precision AS
+$$
+DECLARE
+	i int;
+	query_vector int[];
+	result_vector double precision[];
+	reference_distance double precision;
+	hit_count int;
+	dist double precision;
+	line_ record;
+	recall_ double precision;
+BEGIN
+	hit_count = 0;
+	reference_distance = get_reference_distance(query_vector_index);
+	FOR line_ IN (SELECT * FROM result_table_method1 WHERE parameter_key_value = parameters_key AND query_vector_id_ = query_vector_index) LOOP
+		IF(line_.distance <= reference_distance) THEN
+			hit_count = hit_count + 1;
+		END IF;
+	END LOOP;
+	recall_ = hit_count :: double precision / 100;
+	INSERT INTO recall_table_method1(query_vector_id,parameters_key_,recall) VALUES
+		(query_vector_index,parameters_key,recall_);
+	RETURN recall_;
+END;
+$$ LANGUAGE plpgsql;
+
+\end{lstlisting}
+\vspace{5mm}
+
+Observe que esta função calcula o \emph{recall} obtido para determinado vetor (da tabela \textbf{tquery}) com um determinado conjunto de parâmetros ($\alpha$, $\beta$ e $\gamma$). Assim, podemos rodar o algoritmo do Método 1 para diversos vetores de \textbf{tquery} e diversas combinações de parâmetros antes de computar o \emph{recall} de cada combinação. Isto torna mais conveniente obter estatísticas de eficiência do método, como ficará claro mais tarde. 
+
+Para computar e armazenar o \emph{recall} de todos os vetores de \textbf{tquery} para determinado conjunto de parâmetros, executamos a função:\\
+
+\begin{lstlisting}[caption = Computando o \emph{recall} para todos os vetores de \textbf{tquery}., label = recalltodos1]
+CREATE OR REPLACE FUNCTION get_recall_for_all(parameters_key int) RETURNS void AS
+$$
+DECLARE
+	alpha double precision;
+	beta double precision;
+	gamma double precision;
+BEGIN
+	alpha = (SELECT alpha_ FROM method1_parameters_key WHERE id = parameters_key);
+	beta = (SELECT beta_ FROM method1_parameters_key WHERE id = parameters_key);
+	gamma = (SELECT gamma FROM method1_parameters_key WHERE id = parameters_key);
+	FOR i IN 1..10000 LOOP
+		PERFORM ann_method1(i,alpha,beta,gamma);
+		PERFORM get_recall_method1(i,parameters_key);
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+\end{lstlisting}
+\vspace{5mm}
+
+Diversas tabelas foram criadas para armazenar os resultados das consultas e os \emph{recalls} obtidos. Para fins de conveniência do leitor, adicionamos o esquema lógico das tabelas do Método 1 no Appêndice \ref{app1}. 
 
 \begin{thebibliography}{99}
 
@@ -313,5 +416,58 @@ Esta consulta, que é feita originalmente sobre uma tabela com 1000000 de entrad
 
 
 \end{thebibliography}
+
+\appendix
+
+
+\section{Appêndice}
+
+\subsection{Esquema das estruturas de dados do pré-processamento}\label{app0}
+
+\begin{lstlisting}[caption = O esquema do pré-processamento, label = esqmet0]
+CREATE TABLE sight_
+	(id INT NOT NULL PRIMARY KEY,
+	 centroid int[],
+	);
+
+CREATE TABLE closer_centroids 
+	(id INT NOT NULL, 
+	 closer_centroid_ind INT, 
+	 dist double precision
+	);
+\end{lstlisting}
+\vspace{5mm}
+
+\subsection{O esquema do Método 1}\label{app1}
+
+
+\begin{lstlisting}[caption = O esquema do Método 1, label = esqmet1]
+CREATE TABLE method1_parameters_key 
+	(id SERIAL PRIMARY KEY, 
+	 alpha_ double precision,
+	 beta_ double precision,
+	 gamma_ double precision
+	);
+
+CREATE TABLE result_table_method1
+	(id SERIAL PRIMARY KEY,
+	 parameter_key_value int,
+	 query_vector_id_ int,
+	 vector int[],
+	 distance double precision,
+	 FOREIGN KEY (parameter_key_value) REFERENCES method1_parameters_key(id)
+	);
+
+CREATE TABLE recall_table_method1
+	(id SERIAL PRIMARY KEY,
+	 query_vector_id int,
+	 parameters_key_ int,
+	 recall double precision,
+	 FOREIGN KEY (query_vector_id) REFERENCES tquery(id),
+	 FOREIGN KEY (parameters_key) REFERENCES method1_parameters_key(id)
+	);
+
+\end{lstlisting}
+\vspace{5mm}
 
 \end{document}
