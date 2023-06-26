@@ -40,12 +40,13 @@ BEGIN
 	n = (SELECT COUNT(*) FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
 	IF (n = 0) THEN
 		INSERT INTO method1_parameters_key (alpha_,beta_,gamma_) VALUES (alpha,beta,gamma);
-		parameters_key_value = (SELECT par.id FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
-		n = (SELECT COUNT(*) FROM result_table_method1 WHERE parameter_key_value = parameters_key_value AND query_vector_id_ = query_vector_id);
-		IF (n != 0) THEN
-			RAISE EXCEPTION 'The function was already computed for this query vector and these parameter values';
-		END IF;
 	END IF;
+	parameters_key_value = (SELECT par.id FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
+	n = (SELECT COUNT(*) FROM result_table_method1 WHERE parameter_key_value = parameters_key_value AND query_vector_id_ = query_vector_id);
+	IF (n != 0) THEN
+		RAISE EXCEPTION 'The function was already computed for this query vector and these parameter values';
+	END IF;
+	
 	
 	SELECT query INTO query_vector FROM tquery WHERE id = query_vector_id;
 	closer_centroid_index = get_closer_centroid_tquery(query_vector_id);

@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2023.6.5)  25 JUN 2023 14:54
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex 2023.6.5)  26 JUN 2023 13:13
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -501,7 +501,11 @@ Package geometry Warning: Over-specification in `h'-direction.
 Package geometry Warning: Over-specification in `v'-direction.
     `height' (554.82874pt) is ignored.
 
-(./descricao.aux)
+(./descricao.aux
+
+LaTeX Warning: Label `esqmet0' multiply defined.
+
+)
 \openout1 = `descricao.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 48.
@@ -689,20 +693,15 @@ Underfull \hbox (badness 10000) in paragraph at lines 139--140
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 152--153
+Underfull \hbox (badness 10000) in paragraph at lines 154--155
 
  []
 
 LaTeX Font Info:    Trying to load font information for TS1+cmtt on input line 
-157.
+159.
 (/usr/share/texlive/texmf-dist/tex/latex/base/ts1cmtt.fd
 File: ts1cmtt.fd 2019/12/16 v2.5j Standard LaTeX font definitions
 ) [3]
-Underfull \hbox (badness 10000) in paragraph at lines 195--196
-
- []
-
-
 Underfull \hbox (badness 10000) in paragraph at lines 197--198
 
  []
@@ -727,6 +726,11 @@ Underfull \hbox (badness 10000) in paragraph at lines 205--206
 
  []
 
+
+Underfull \hbox (badness 10000) in paragraph at lines 207--208
+
+ []
+
 Package epstopdf Info: Source file: <metodo1.eps>
 (epstopdf)                    date: 2023-06-24 18:44:47
 (epstopdf)                    size: 125501 bytes
@@ -735,68 +739,81 @@ Package epstopdf Info: Source file: <metodo1.eps>
 (epstopdf)                    size: 4498 bytes
 (epstopdf)             Command: <repstopdf --outfile=metodo1-eps-converted-to.p
 df metodo1.eps>
-(epstopdf)             \includegraphics on input line 211.
+(epstopdf)             \includegraphics on input line 213.
 Package epstopdf Info: Output file is already uptodate.
-<metodo1-eps-converted-to.pdf, id=55, 192.72pt x 181.67876pt>
+<metodo1-eps-converted-to.pdf, id=53, 192.72pt x 181.67876pt>
 File: metodo1-eps-converted-to.pdf Graphic file (type pdf)
 <use metodo1-eps-converted-to.pdf>
-Package pdftex.def Info: metodo1-eps-converted-to.pdf  used on input line 211.
+Package pdftex.def Info: metodo1-eps-converted-to.pdf  used on input line 213.
 (pdftex.def)             Requested size: 192.71951pt x 181.6783pt.
 
 LaTeX Warning: `h' float specifier changed to `ht'.
 
-
-Underfull \hbox (badness 10000) in paragraph at lines 220--222
-
- []
-
 [4]
-Underfull \hbox (badness 10000) in paragraph at lines 223--224
+Underfull \hbox (badness 10000) in paragraph at lines 222--224
 
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 231--232
+Underfull \hbox (badness 10000) in paragraph at lines 225--226
+
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 233--234
 
  []
 
 [5 <./metodo1-eps-converted-to.pdf>]
-Underfull \hbox (badness 10000) in paragraph at lines 248--249
+Underfull \hbox (badness 10000) in paragraph at lines 250--251
 
  []
 
 [6]
 
 LaTeX Font Warning: Font shape `OT1/cmss/bx/it' undefined
-(Font)              using `OT1/cmss/bx/n' instead on input line 327.
+(Font)              using `OT1/cmss/bx/n' instead on input line 329.
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 329--330
+Underfull \hbox (badness 10000) in paragraph at lines 331--332
 
  []
 
 [7]
-Underfull \hbox (badness 10000) in paragraph at lines 354--355
+Underfull \hbox (badness 10000) in paragraph at lines 356--357
+
+ []
+
+[8]
+Underfull \hbox (badness 10000) in paragraph at lines 390--391
 
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 388--389
+Underfull \hbox (badness 10000) in paragraph at lines 417--418
 
  []
 
-[8] [9] [10] (./descricao.aux)
+
+Underfull \hbox (badness 10000) in paragraph at lines 431--432
+
+ []
+
+[9] [10] [11] (./descricao.aux)
 
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+
+LaTeX Warning: There were multiply-defined labels.
 
 Package rerunfilecheck Info: File `descricao.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 16235 strings out of 478287
- 278189 string characters out of 5849290
- 1029050 words of memory out of 5000000
- 33982 multiletter control sequences out of 15000+600000
+ 16281 strings out of 478287
+ 278808 string characters out of 5849290
+ 998050 words of memory out of 5000000
+ 33986 multiletter control sequences out of 15000+600000
  477609 words of font info for 59 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  108i,13n,106p,10604b,1890s stack positions out of 5000i,500n,10000p,200000b,80000s
@@ -816,10 +833,10 @@ ive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti12.pfb></usr/share/texlive/te
 xmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/share/texlive/texmf-di
 st/fonts/type1/public/amsfonts/symbols/msbm10.pfb></usr/share/texmf/fonts/type1
 /public/cm-super/sftt1000.pfb>
-Output written on descricao.pdf (10 pages, 230116 bytes).
+Output written on descricao.pdf (11 pages, 236873 bytes).
 PDF statistics:
- 449 PDF objects out of 1000 (max. 8388607)
- 398 compressed objects within 4 object streams
- 240 named destinations out of 1000 (max. 500000)
- 83 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 510 PDF objects out of 1000 (max. 8388607)
+ 457 compressed objects within 5 object streams
+ 282 named destinations out of 1000 (max. 500000)
+ 99 words of extra memory for PDF output out of 10000 (max. 10000000)
 

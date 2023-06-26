@@ -145,6 +145,8 @@ então os vetores de object mais próximos do vetor $\mathrm{tquery}[10]$ são
 \begin{align*}\mathrm{object}[20], \,\mathrm{object}[12],\, \mathrm{object}[14],\, \ldots 
 \end{align*}
 
+Para a conveniência do leitor, o esquema completo (com os identificadores das colunas) está descrito no Appêndice \ref{app-1}. 
+
 \section{Pré-processamento}
 
 Na fase de pré-processamento, primeiro executamos um algoritmo de \emph{clusterização} de $S$. Para este fim, usamos o algoritmo \emph{KMeans} da biblioteca \emph{scikit} da linguagem \emph{Python}. Informalmente, este algoritmo agrupa os vetores de $S$ em $k$ conjuntos de vetores pŕoximos entre si, e retorna os \emph{centróides} destes conjuntos (pense no centróide como um vetor que é, de alguma forma, central dentro do conjunto). Consideramos $k = 128$, e isso significa que o algoritmo retornará uma tabela com 128 vetores de $S$ (os \emph{centróides}). Estes vetores estão armazenados na tabela \textbf{sight}. Esta tabela tem duas colunas: \textbf{id}, que é a chave primária (inteiros sequenciais) e \textbf{centroid}, que armazena o centróide correspondente (vetor de inteiros). 
@@ -272,11 +274,11 @@ BEGIN
 	n = (SELECT COUNT(*) FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
 	IF (n = 0) THEN
 		INSERT INTO method1_parameters_key (alpha_,beta_,gamma_) VALUES (alpha,beta,gamma);
-		parameters_key_value = (SELECT par.id FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
-		n = (SELECT COUNT(*) FROM result_table_method1 WHERE parameter_key_value = parameters_key_value AND query_vector_id_ = query_vector_id);
-		IF (n != 0) THEN
-			RAISE EXCEPTION 'The function was already computed for this query vector and these parameter values';
-		END IF;
+	END IF;
+	parameters_key_value = (SELECT par.id FROM method1_parameters_key AS par WHERE par.alpha_ = alpha AND par.beta_ = beta AND par.gamma_ = gamma); 
+	n = (SELECT COUNT(*) FROM result_table_method1 WHERE parameter_key_value = parameters_key_value AND query_vector_id_ = query_vector_id);
+	IF (n != 0) THEN
+		RAISE EXCEPTION 'The function was already computed for this query vector and these parameter values';
 	END IF;
 	
 	SELECT query INTO query_vector FROM tquery WHERE id = query_vector_id;
@@ -385,7 +387,7 @@ $$ LANGUAGE plpgsql;
 
 Observe que esta função calcula o \emph{recall} obtido para determinado vetor (da tabela \textbf{tquery}) com um determinado conjunto de parâmetros ($\alpha$, $\beta$ e $\gamma$). Assim, podemos rodar o algoritmo do Método 1 para diversos vetores de \textbf{tquery} e diversas combinações de parâmetros antes de computar o \emph{recall} de cada combinação. Isto torna mais conveniente obter estatísticas de eficiência do método, como ficará claro mais tarde. 
 
-Para computar e armazenar o \emph{recall} de todos os vetores de \textbf{tquery} para determinado conjunto de parâmetros, executamos a função:\\
+Para computar e armazenar o \emph{recall} de uma amostra de 100 vetores de \textbf{tquery} para determinado conjunto de parâmetros, executamos a função:\\
 
 \begin{lstlisting}[caption = Computando o \emph{recall} para todos os vetores de \textbf{tquery}., label = recalltodos1]
 CREATE OR REPLACE FUNCTION get_recall_for_all(parameters_key int) RETURNS void AS
@@ -397,8 +399,8 @@ DECLARE
 BEGIN
 	alpha = (SELECT alpha_ FROM method1_parameters_key WHERE id = parameters_key);
 	beta = (SELECT beta_ FROM method1_parameters_key WHERE id = parameters_key);
-	gamma = (SELECT gamma FROM method1_parameters_key WHERE id = parameters_key);
-	FOR i IN 1..10000 LOOP
+	gamma = (SELECT gamma_ FROM method1_parameters_key WHERE id = parameters_key);
+	FOR i IN 1..100 LOOP
 		PERFORM ann_method1(i,alpha,beta,gamma);
 		PERFORM get_recall_method1(i,parameters_key);
 	END LOOP;
@@ -409,6 +411,51 @@ $$ LANGUAGE plpgsql;
 \vspace{5mm}
 
 Diversas tabelas foram criadas para armazenar os resultados das consultas e os \emph{recalls} obtidos. Para fins de conveniência do leitor, adicionamos o esquema lógico das tabelas do Método 1 no Appêndice \ref{app1}. 
+
+\section{Discussão dos resultados}
+
+A tabela abaixo compara o Método 1 com o algoritmo de força bruta. Os parâmetros de cada execução do Método 1 estão informados entre parênteses. As colunas \textbf{Média}, \textbf{Mínimo}, \textbf{Máximo} e \textbf{Desvio padrão} referem-se aos valores de \emph{recall} obtidos para os 100 primeiros vetores da tabela \textbf{tquery}. A coluna \textbf{Tempo médio} refere-se ao tempo médio de execução do método para um vetor específico informado como parâmetro.  \\
+
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+ & Média & Mínimo & Máximo & Desvio padrão & Tempo médio \\ \hline
+Método 1 (0.01; 1000; 0.33) & 0.531 & 0.05 & 1 & 0.249 &  0.760 s \\ \hline
+Método 1 (0.01; 100; 0.33) & 0.531 & 0.05 & 1  & 0.248 & 0.621 s   \\ \hline
+Método 1 (0.5; 30; 0.4) & 0.493 & 0.04 & 1  & 0.252  & 0.538 s   \\ \hline
+Método 1 (0.5; 10; 0.5) & 0.252  & 0 & 1  & 0.239  & 0.415 s    \\ \hline
+Força bruta & 1 & 1 & 1 & 0  & 25 s  \\ \hline
+\end{tabular}
+\end{center}
+
+Note que o método de força bruta é mais de 40 vezes mais lento do que o Método 1 com parâmetros 0.5, 30 e 0.4 (que tem \emph{recall} próximo de 50$\%$).O código do método de força bruta encontra-se abaixo:\\
+
+\begin{lstlisting}[caption = O método de força bruta., label = forbru]
+CREATE OR REPLACE FUNCTION ann_brute_force(query_index int) RETURNS void AS $$
+DECLARE
+    query_vector int[];
+    object_vector int[];
+    line_ record;
+    dist double precision;
+BEGIN
+    SELECT query INTO query_vector FROM tquery WHERE id = query_index;
+    FOR line_ IN (SELECT * FROM object) LOOP
+        object_vector = line_.features;
+        dist = euclidean_distance(object_vector,query_vector);
+        INSERT INTO result_table_brute_force(query_vector_ind, vector_index, distance) VALUES
+            (query_index,line_.id,dist);
+    END LOOP;
+
+    dist = (SELECT distance FROM result_table_brute_force ORDER BY distance LIMIT 1 OFFSET 99);
+    DELETE FROM result_table_brute_force WHERE query_vector_ind = query_index AND distance > dist;
+
+END;
+$$ LANGUAGE plpgsql;
+
+\end{lstlisting}
+\vspace{5mm}
+
+
 
 \begin{thebibliography}{99}
 
@@ -421,6 +468,26 @@ Diversas tabelas foram criadas para armazenar os resultados das consultas e os \
 
 
 \section{Appêndice}
+
+\subsection{Esquema do Dataset SIFT-128}\label{app-1}
+\begin{lstlisting}[caption = O esquema do pré-processamento, label = esqmet0]
+CREATE TABLE object
+	(id INT NOT NULL PRIMARY KEY,
+	 features int[128]
+	);
+
+CREATE TABLE tquery
+	(id INT NOT NULL PRIMARY KEY,
+	 query int[128]
+	);
+
+CREATE TABLE neighbors
+	(id INT NOT NULL PRIMARY KEY,
+	 neighbors int[100],
+	);
+
+\end{lstlisting}
+\vspace{5mm}
 
 \subsection{Esquema das estruturas de dados do pré-processamento}\label{app0}
 
@@ -438,7 +505,7 @@ CREATE TABLE closer_centroids
 \end{lstlisting}
 \vspace{5mm}
 
-\subsection{O esquema do Método 1}\label{app1}
+\subsection{Esquema do Método 1}\label{app1}
 
 
 \begin{lstlisting}[caption = O esquema do Método 1, label = esqmet1]
@@ -455,7 +522,8 @@ CREATE TABLE result_table_method1
 	 query_vector_id_ int,
 	 vector int[],
 	 distance double precision,
-	 FOREIGN KEY (parameter_key_value) REFERENCES method1_parameters_key(id)
+	 FOREIGN KEY (parameter_key_value) REFERENCES method1_parameters_key(id),
+	 FOREIGN KEY (query_vector_id_) REFERENCES object(id)
 	);
 
 CREATE TABLE recall_table_method1
